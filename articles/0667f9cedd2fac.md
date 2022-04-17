@@ -1,8 +1,8 @@
 ---
 title: "Docker を使った環境の共有にめちゃくちゃ苦戦した話"
 emoji: "💭"
-type: "tech, "docker", "Go", "mysql" # tech: 技術記事 / idea: アイデア
-topics: []
+type: "tech"# tech: 技術記事 / idea: アイデア
+topics: [ "docker", "Go", "mysql" ]
 published: false
 ---
 

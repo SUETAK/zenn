@@ -2,7 +2,7 @@
 title: "Golang のmock 処理を真似したら型判定が通らなかったので謎を解明する"
 emoji: "👋"
 type: "tech" # tech: 技術記事 / 
-topics: [Go]
+topics: ["Go"]
 published: true
 ---
 
