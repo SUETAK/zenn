@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "new": "zenn new:article",
+    "new:book": "zenn new:book",
     "preview": "zenn preview"
   },
   "repository": {

@@ -1,0 +1,10 @@
+title: "Connect-go Docs 日本語翻訳"
+summary: "Connect-go のドキュメントを日本語訳しています"
+topics: []
+published: false
+price: 0 # 有料の場合200〜5000
+# 本に含めるチャプターを順番に並べましょう
+chapters:
+  - イントロダクション
+  - Connect for Go
+  - Connect for Go[ Getting started ]
