@@ -3,11 +3,11 @@ title: "次世代gRPC ライブラリConnect はいったい何が「イイ」�
 emoji: "🍣"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: []
-published: false
+published: true
 ---
 
 # はじめに
-Connect は最近注目されているgRPC のライブラリです。
+[Connect](https://connectrpc.com/docs/introduction) は最近注目されているgRPC のライブラリです。
 web, Node.js, Go などの環境でgRPC を使うことができるようになります。
 gRPC-web などでも同様のことができていましたが、Proxy サーバを立てる必要がありました。
 Connect は、Proxy サーバを立てる必要がなく、gRPC の通信を行うことができます。
@@ -15,7 +15,13 @@ Connect は、Proxy サーバを立てる必要がなく、gRPC の通信を行�
 今回は、Connect を使ったWebアプリケーションを運用してわかった、メリットを紹介します
 
 ## メリット
-最大のメリットは、.proto ファイルを使用したスキーマの自動生成を行うだけで、サーバ、クライアントの両方に型定義を持ったコードを生成できることです。
+主なメリットは下記の３点です。
+- Node.js, Go, Kotlin, Swift などの複数の環境でgRPC を使うことができる 
+- HTTP/1.1, HTTP/2, WebSocket などの通信を行うことができる
+- gRPC のAPI定義から、サーバ、クライアントの両方に型定義を持ったコードを生成できる
+
+
+.proto ファイルを使用したスキーマの自動生成を行うだけで、サーバ、クライアントの両方に型定義を持ったコードを生成できることはわかりやすいメリットの一つです。
 1. proto ファイルを修正する
 2. コードを自動生成する
 3. サーバ、クライアントで処理を実装する
@@ -158,8 +164,7 @@ export default function Home() {
     console.log("greetingMessage: ", greetingMessage);
     setText(greetingMessage.sentence);
   };
-  return ( // 省略
-    )
+  return ( // 省略)
 }
 
 
@@ -169,10 +174,14 @@ export default function Home() {
 型定義はすでにされており、どのようなメソッドを呼び出しているのかがわかりやすいです。
 どのようなスキーマになっているかは.proto ファイルを見れば一目瞭然で、サーバ、クライアント間で齟齬があることもありません。
 
+
 さらに、Connect はweb2Server の通信だけでなく、Server2Server の通信もgRPC を使って行うことができるため、クライアント、マイクロサービスサーバなどが増えた場合でも対応が簡単に行えます。
-サーバ側の実装では、Go を使用した場合、.proto によって生成されるinterface を実装するだけで自動的にロジックが呼び出されるため、ルーティングを考えなくて良いのです。
-APIが増えるにつれ、path の名前のつけ方が難しくなることがありますが、Connect を使うことで、そのような悩みを解決することができます。
-昔は適切な名前だったけど、現状から見た時には不適切だということがわかり、名称を変更したい場合でも、.proto ファイルを修正し、コードを自動生成するだけで修正が終わります。
+connectサーバ → REST サーバ
+connectサーバ → gRPC サーバ
+connectサーバ → connect サーバ
+のような組み合わせでそれぞれ通信を行うことができます。
+
+
 
 ## まとめ
 Connect は、gRPC を使ったAPIを作成する際に、非常に便利なライブラリです。
