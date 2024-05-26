@@ -16,9 +16,9 @@ published: false
 今回は簡単に、お金の管理アプリにしましょう
 
 ## サービスベースアーキテクチャのサービスにどんなサービスが必要か決める
-
-お金の管理アプリなので、ユーザー登録系のサービス
-お金の管理サービス
+下記の2つのサービスがあると仮定してお話を進めます。
+- ユーザー系のサービス
+- お金の管理サービス
 
 
 ## 使用する技術とか諸々
@@ -137,18 +137,137 @@ networks:
 
 # 実装
 
+## ユーザー系サービスの実装
+## 依存関係
+まず、NestJSのアプリケーションを作成した時点で、"Hello world"を返却するAPIは実装されており、Get リクエストを受け取る基盤はすでに提供されています。
+`app.module`, `app.controller`, `app.service` が作成時に提供されています。
+
+今回はデータストアであるFirestore に接続する必要があるため、`Repository` 定義し、app.Service が app.Repository に依存するようにします。
+
+`src/repository` を作成し、`user-repository.ts` を作成します。
+今回は簡単のために、ユーザーを作成するだけのメソッドを作成しましょう。
+Firestore にユーザー作成を行う命令を出す必要がありますが、まだFirestoreの初期化処理を作成していないので、実装は空の状態です。
+
+```TypeScript user-repository.ts
+import { Inject, Injectable } from '@nestjs/common';
+
+import { ulid } from 'ulid';
+import { User } from '../model/user';
+import { Firestore } from '@google-cloud/firestore';
+
+
+@Injectable()
+export class UserRepository {
+  // TODO Firestore の依存を定義する
+  constructor() {}
+
+  async createUser(name: string, email: string) {
+    // TODO Userを作成するロジックを実装する
+  }
+}
+
+```
+
+---
+
+`app.service.ts` がRepository に依存するように書き換えましょう
+```TypeScript
+import {Injectable} from "@nestjs/common";
+import {UserRepository} from "./repository/user-repository";
+import { CreateUserDto } from './dto/create-user.dto';
+
+@Injectable()
+export class AppService {
+  constructor(private userRepository: UserRepository) {
+  }
+
+  async createUser(user: CreateUserDto) {
+    await this.userRepository.createUser(user.name, user.email)
+  }
+}
+
+
+```
+
 ## Firestore に接続する
+まずはFirestoreに接続する準備を行います。
+今回はFirebase を使用しないため、google-cloud のSDKをインストールします。
 ```shell
 npm install @google-cloud/Firestore
 ```
 
-app.module で初期化する
+次にFirestoreに接続するための接続情報を渡してインスタンスを生成します。
+```TypeScript app.module
+import { Module } from '@nestjs/common';
+import { UserService } from './user.service';
 
+import { UserRepository } from './repository/user-repository';
+import { UserController } from './user.controller';
+import { Firestore } from '@google-cloud/firestore';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
+@Module({
+  imports: [ConfigModule.forRoot({ envFilePath: ['.env', '.env.local'] })],
+  controllers: [UserController],
+  providers: [UserService, UserRepository,
+    {
+      provide: 'FIRESTORE_INSTANCE',
+      useFactory: async (configService: ConfigService) => {
+        const firestore = new Firestore({
+          projectId: 'your-project-id',
+          port: 8080,
+          ssl: false,
+          host: 'firestore-emulator',
+        });
+        console.log(firestore.databaseId)
+        console.log(firestore.listCollections())
+
+        return firestore;
+      },
+      inject: [ConfigService],
+    },
+  ],
+
+})
+export class AppModule {
+}
+
+```
 
 ## Firestore にデータを保存する
 userRepository を作成して、ユーザーを生成するメソッドを作成。
-userService がuserRepository に依存するように実装する
+この時点でFirestoreに接続する準備をAppModule が行ってくれるようになったので、Repository側でFirestore を呼び出すように修正しましょう。
+
+```TypeScript user-repository.ts
+import { Inject, Injectable } from '@nestjs/common';
+
+import { ulid } from 'ulid';
+import { User } from '../model/user';
+import { Firestore } from '@google-cloud/firestore';
+
+
+@Injectable()
+export class UserRepository {
+  private db: Firestore
+
+  // AppModule ではFIRESTORE_INSTANCEとして登録しているので、この名前で呼び出します
+  constructor(@Inject('FIRESTORE_INSTANCE') db: Firestore) {
+    this.db = db;
+  }
+
+  async createUser(name: string, email: string) {
+    const id = ulid()
+    const user:User = {id , email, name}
+    const writeResult = await this.db.collection('users').doc(user.id).set(user);
+    console.log(`User with ID: ${id} added at: ${writeResult.writeTime.toDate()}`);
+  }
+}
+
+```
+
+## 環境変数を使ってエミュレーターへの接続も行えるようにする
+理論上、Firestore に接続できるように作成しましたが、ローカルで動作することを確認したいため、
+
 ## 相互に通信するようにする
 
 money-service からuser-service のAPIを実行する
