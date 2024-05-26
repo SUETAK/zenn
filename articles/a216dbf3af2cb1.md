@@ -266,27 +266,92 @@ export class UserRepository {
 ```
 
 ## 環境変数を使ってエミュレーターへの接続も行えるようにする
-理論上、Firestore に接続できるように作成しましたが、ローカルで動作することを確認したいため、
+理論上、Firestore に接続できるように作成しましたが、ローカルで動作することを確認したいため、エミュレーターのFirestore でも動作するようにします。
+環境変数を使ってエミュレーター用の接続をするかどうかを切り替えられるようにします。
 
-## 相互に通信するようにする
+app.module を修正して、ConfigService から環境変数の値を読み込み、if文で分岐させます。
+環境変数はdocker-compose で設定しても良いですし、Dockerfile で設定しても良いです。
+
+```TypeScript user-repository.ts
+import { Module } from '@nestjs/common';
+import { UserService } from './user.service';
+
+import { UserRepository } from './repository/user-repository';
+import { UserController } from './user.controller';
+import { Firestore } from '@google-cloud/firestore';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+
+@Module({
+  imports: [ConfigModule.forRoot({ envFilePath: ['.env', '.env.local'] })],
+  controllers: [UserController],
+  providers: [UserService, UserRepository,
+    {
+      provide: 'FIRESTORE_INSTANCE',
+      useFactory: async (configService: ConfigService) => {
+        const useEmulator = configService.get('USE_FIRESTORE_EMULATOR') === 'true';
+        let firestore: Firestore;
+        console.log(useEmulator)
+
+        if (useEmulator) {
+          firestore = new Firestore({
+            projectId: 'your-project-id',
+            host: 'firestore-emulator',
+            port: 8080,
+            ssl: false,
+          });
+          console.log(firestore.databaseId)
+          console.log(firestore.listCollections())
+        } else {
+          console.log('Using Firestore production instance');
+          const projectId = configService.get('PROJECT_ID');
+          firestore = new Firestore({
+            projectId,
+          });
+        }
+
+        return firestore;
+      },
+      inject: [ConfigService],
+    },
+  ],
+
+})
+export class AppModule {
+}
+
+```
+
+# 本番環境にデプロイする
+本番環境でFirestoreに通信し、データが保存されることを確認しましょう。
+基本的な流れとしては下記のようになっており、基本的には下記のような手順になっています。
+[公式のドキュメント](https://cloud.google.com/run/docs/quickstarts/deploy-continuously?hl=ja) で予習をしておくとお話が早いです。
+1. google cloud のアカウントを作成する
+2. サービスを作成する
+3. リポジトリにCloud Run を紐づける
+4. ビルドするDockerfileを指定し、ビルドを行う
+
+
+またこの時、ビルドした時のログはログエクスプローラーに出力されています。
+resource type > cloud build にフィルターを設定すると、何が原因でダメかが書いてあります。
+Cloud Build の画面でもログがでますが、iam に権限がない場合など、そもそもビルド自体ができなかったりする場合はCloud Build のログはでてこないため、ログエクスプローラーを参考にすると良いかもしれません。
+
+Cloud Run にデプロイし、正しくビルドできればコンテナにアクセスできる状態にはなっているはずです。
+
+
+## Firestore を作成する
+アプリがデプロイできたとしても、接続対象のFirestoreデータベースがなければ動作しません。
+[Firestoreのコンソール](https://console.cloud.google.com/firestore/databases)からデータベースを作成しましょう。
+
+データベースIDに`(default)` を指定すると無料枠モードで使用することができます。
+CloudRunのリージョンと同じリージョンを指定してデータベースを作成しましょう。
+
+## 本番環境のAPIを実行する
+Cloud Run のサービスを作成する時に設定時に公開するか、認証が必要かを選択したと思います。
+これを一時的に「公開する」に設定し、直接APIを実行します。
+
+# 相互に通信するようにする
 
 money-service からuser-service のAPIを実行する
 ```shell
 npm i --save @nestjs/axios axios
 ```
-
-
-# 本番環境にデプロイする
-本番環境で相互に通信しつつ、データが保存されることを確認する
-
-リポジトリにcloudrun を紐づける
-ログエクスプローラーからログを辿れる
-resource type > cloud build にフィルターを設定すると、何が原因でダメかが書いてある
-
-iam に権限がない場合は有効にする
-
-# 本番環境で動かす
-cloudrun にデプロイし、正しくビルドできればコンテナにアクセスできる状態にはなっている
-
-## 本番環境のAPIを実行する
-
