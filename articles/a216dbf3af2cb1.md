@@ -1,9 +1,9 @@
 ---
-title: "サービスベースアーキテクチャを実際に実装して得られた知見のまとめ"
+title: "サービスベースアーキテクチャを実際に実装し、Cloud Run * Firestore の環境にデプロイする"
 emoji: "✨"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: []
-published: false
+published: true
 ---
 
 # サービスベースアーキテクチャとは
@@ -320,20 +320,81 @@ export class AppModule {
 }
 
 ```
+## swagger を導入する
+swagger を導入することで、APIのドキュメントなどを自動で作成し、ブラウザ上からAPIを実行することができます
+```shell
+npm install @nestjs/swagger
+```
+
+main.ts で初期化を行います。SwaggerModule.setup で指定した `'api'` と言うのがドキュメントへのpath になります。
+```TypeScript
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // swagger
+  const config = new DocumentBuilder()
+    .setTitle('Money API')
+    .setDescription('Money 周りのAPIドキュメント')
+    .setVersion('1.0')
+    .addTag('Money')
+    .build()
+
+  const document = SwaggerModule.createDocument(app, config)
+  SwaggerModule.setup('api', app, document)
+
+  await app.listen(3000, '0.0.0.0');
+}
+bootstrap();
+
+
+```
+
 
 # 本番環境にデプロイする
 本番環境でFirestoreに通信し、データが保存されることを確認しましょう。
 基本的な流れとしては下記のようになっており、基本的には下記のような手順になっています。
 [公式のドキュメント](https://cloud.google.com/run/docs/quickstarts/deploy-continuously?hl=ja) で予習をしておくとお話が早いです。
-1. google cloud のアカウントを作成する
-2. サービスを作成する
+1. Dockerfileを作成する
+2. google cloud のアカウントを作成する
+3. サービスを作成する
    - リポジトリにCloud Run を紐づける
    - ビルドするDockerfileを指定し、ビルドを行う
 
-## 1. google cloud のアカウントを作成する
+## 1. Dockerfile を作成する
+Dockerfile はCloudRun でのビルドに使用します。ローカル環境のコンテナ作成に使用しても良いですが、ローカル環境ではホットリロードを使用したい場合などがあるので、`npm run dev` ができるようにしておくと良いでしょう。
+今回は下記のDockerfile を使用します
+
+```Dockerfile
+# Node.js の LTS バージョンをベースにする
+FROM node:lts
+
+# アプリケーションディレクトリを作成する
+WORKDIR /usr/src/app
+
+# アプリケーションの依存関係をインストールするためのファイルをコピーする
+COPY auth-service/package*.json ./
+
+# アプリケーションの依存関係をインストールする
+RUN npm install
+
+# アプリケーションのソースをコピーする
+COPY auth-service .
+
+EXPOSE 3000
+
+# アプリケーションを実行する
+CMD [ "npm", "start" ]
+
+```
+
+## 2. google cloud のアカウントを作成する
 [公式のドキュメント](https://cloud.google.com/apigee/docs/hybrid/v1.8/precog-gcpaccount?hl=ja)を参考に、プロジェクトを作成してください
 
-## 2. サービスを作成する
+## 3. サービスを作成する
 [Cloud Run](https://console.cloud.google.com/run)のページに移動し、サービスを作成します。
 
 サービスを作成ボタンを押下し、サービス作成画面へ行きます
@@ -364,7 +425,7 @@ Cloud Build の設定という画面がでてきます。
 
 「認証」の設定はあとで変えられますが、不要にアクセスされないように「認証が必要」にチェックしておきましょう。
 
-コンテナ、vol.、ネットワーキング、セキュリティの欄を開き、コンテナのポートを3000 に変更します。
+コンテナ、ボリューム、ネットワーキング、セキュリティの欄を開き、コンテナのポートを3000 に変更します。
 ![img_8.png](/images/img_8.png)
 
 残りはデフォルト設定のままにして作成ボタンを押下してください。
@@ -388,9 +449,72 @@ CloudRunのリージョンと同じリージョンを指定してデータベー
 Cloud Run のサービスを作成する時に設定時に公開するか、認証が必要かを選択したと思います。
 これを一時的に「公開する」に設定し、直接APIを実行します。
 
+Cloud Run のセキュリティ設定を一時的に公開し、swagger によってレンダリングしたdocs からAPIを実行しましょう。
+Cloud Run のページから作成したサービスをクリックし、 URL の欄に記載されているURLを使用して、`${url}/api` に接続するとSwagger のUIが表示されます。
+
+`try` ボタンを押下して、リクエストを実行しましょう。200レスポンスが返ってきたら、正しくFirestore へデータが保存されています。
+
+
 # 相互に通信するようにする
 
-money-service からuser-service のAPIを実行する
+auth-service からFirestore への通信ができたので、次はmoney-service がauth-service のAPIを実行するようにしましょう。
+Cloud Run やBuild の作法は変わりません。money-service 用のDockerfile を用意し、そのDockerfileを使用してビルドするように設定したサービスを立てるだけです。
+
+
+money-service からuser-service のAPIを実行する必要があるので、NestJSのaxios をインストールしましょう。
 ```shell
 npm i --save @nestjs/axios axios
 ```
+
+基本的なAPIのコール方法は全く一緒なので、auth-service とほぼ同じものが出来上がるイメージです。
+
+
+## auth-service へのクライアントを作成する
+
+auth-service でRepositoryをDIするように設定したのと同じように、/client/auth-client.ts を作成し、DIします。
+API のリクエスト先は、auth-service のurl を指定するようにします。
+
+```TypeScript
+import { Injectable } from '@nestjs/common';
+import axios from 'axios';
+import * as process from 'node:process';
+
+
+@Injectable()
+export class AuthClient {
+  private readonly authServiceUrl: string;
+
+  constructor() {
+    this.authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
+  }
+
+
+  async createUser() {
+    const userData = {
+      name: 'test',
+      email: 'money-email.com',
+    };
+    try {
+      const response = await axios.post(`${this.authServiceUrl}/users`, userData);
+      return response.status;
+    } catch (error) {
+      console.log(`Error creating user: ${error}`);
+      throw error;
+    }
+  }
+}
+
+```
+
+auth-service と同様にswagger をインストールし、/api でswagger UI に接続できるようにしてデプロイを行います。
+
+ビルドができたら2つのサービスのセキュリティを「公開」に設定して、money-service 側からAPIを実行しましょう。
+200が返ってきたらFirestoreを確認し、データが保存されていることを確認しましょう。
+
+
+以上で、2つのサービスが通信ができるようになり、1つのDBを共有する状態を作成できました。
+
+# 終わりに
+この記事では、サービスベースアーキテクチャを実際にローカルとクラウド上で運用できるようにすることを目標にし、実際にどんな実装をする必要があるのかを羅列しました。
+別の記事で実際に運用する時に気にすべきことをまとめようと思います
+
