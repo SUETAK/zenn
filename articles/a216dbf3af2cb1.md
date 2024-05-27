@@ -152,7 +152,7 @@ Firestore にユーザー作成を行う命令を出す必要がありますが�
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ulid } from 'ulid';
-import { User } from '../model/user';
+import { User } from '/model/user';
 import { Firestore } from '@google-cloud/firestore';
 
 
@@ -242,7 +242,7 @@ userRepository を作成して、ユーザーを生成するメソッドを作�
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ulid } from 'ulid';
-import { User } from '../model/user';
+import { User } from '/model/user';
 import { Firestore } from '@google-cloud/firestore';
 
 
@@ -337,7 +337,7 @@ export class AppModule {
 [Cloud Run](https://console.cloud.google.com/run)のページに移動し、サービスを作成します。
 
 サービスを作成ボタンを押下し、サービス作成画面へ行きます
-![img_2.png](../images/img_2.png)
+![img_2.png](/images/img_2.png)
 
 リポジトリから継続的にデプロイする。を選択し、`CLOUD BUILDを設定` ボタンを押下します。
 Cloud Build の設定という画面がでてきます。
@@ -347,15 +347,15 @@ Cloud Build の設定という画面がでてきます。
 連携ができれば、画像のようにリポジトリを選択できるようになります。
 リポジトリを選択したら、`次へ`ボタンを押下し、ビルドタイプを選択します。
 
-![img_5.png](../images/img_5.png)
+![img_5.png](/images/img_5.png)
 
 ビルドタイプは `Dockerfile`を選択してください。
-![img_6.png](../images/img_6.png)
+![img_6.png](/images/img_6.png)
 
 ビルドする時のDockerfile の場所を入力します。起点になるディレクトリは、選択したリポジトリのルートディレクトリになります。
 ルートディレクトリにDockerfile を置いている場合は初期設定で大丈夫です。
 場所を設定したら保存してください。
-![img_7.png](../images/img_7.png)
+![img_7.png](/images/img_7.png)
 
 
 サービス名、リージョンを設定します。
@@ -365,7 +365,7 @@ Cloud Build の設定という画面がでてきます。
 「認証」の設定はあとで変えられますが、不要にアクセスされないように「認証が必要」にチェックしておきましょう。
 
 コンテナ、vol.、ネットワーキング、セキュリティの欄を開き、コンテナのポートを3000 に変更します。
-![img_8.png](../images/img_8.png)
+![img_8.png](/images/img_8.png)
 
 残りはデフォルト設定のままにして作成ボタンを押下してください。
 設定したDockerfileを対象にして、ビルドが始まります。
